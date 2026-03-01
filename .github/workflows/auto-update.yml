@@ -1,0 +1,47 @@
+name: Auto Sync & Replace Domain
+
+on:
+  schedule:
+    - cron: '0 2 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  update-and-replace:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream, Protect workflow, and Hard reset
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 备份护城河
+          cp .github/workflows/auto-update.yml /tmp/auto-update.yml
+          
+          # 拉取官方最新代码并暴力覆盖
+          git remote add upstream https://github.com/morethanwords/tweb.git
+          git fetch upstream
+          git checkout master
+          git reset --hard upstream/master
+          
+          # 恢复护城河
+          mkdir -p .github/workflows
+          cp /tmp/auto-update.yml .github/workflows/auto-update.yml
+
+      - name: Global Aggressive Replace API Domains
+        run: |
+          # 【核心修复】：搜索整个项目（排除git配置），去掉前面的点，进行地毯式无死角替换！
+          find . -type f -not -path '*/\.git/*' -not -path '*/\.github/*' -exec sed -i 's/web\.telegram\.org/web\.xuegao\.cc\.cd/g' {} +
+
+      - name: Commit and Force Push
+        run: |
+          git add .
+          git commit -m "Auto sync with upstream, apply custom domain aggressively" || echo "No changes"
+          git push origin master --force
